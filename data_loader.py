@@ -111,12 +111,10 @@ class EEGDataLoader:
             # Применяем bandpass фильтр (1-50 Гц) для удаления дрейфа и высокочастотного шума
             for i in range(X_processed.shape[0]):
                 for ch in range(X_processed.shape[1]):
-                    # Bandpass фильтр
                     sos = signal.butter(4, [1, 50], btype='band', 
                                        fs=self.sampling_rate, output='sos')
                     X_processed[i, ch, :] = signal.sosfilt(sos, X_processed[i, ch, :])
         
-        # Нормализация по каналам
         n_samples, n_channels, n_time = X_processed.shape
         X_reshaped = X_processed.reshape(-1, n_time)
         X_normalized = self.scaler.fit_transform(X_reshaped.T).T
@@ -154,11 +152,11 @@ class EEGDataLoader:
     
     def load_mne_sample_data(self):
         """
-        Загрузка ЭЭГ данных из MNE sample dataset (Motor Imagery)
+        Загрузка ЭЭГ данных из MNE sample dataset для классификации моторных движений
         
         Returns:
             X: Массив данных (n_samples, n_channels, time_points)
-            y: Метки классов
+            y: Метки классов (моторные движения)
         """
         print("Загрузка MNE sample dataset...")
         print("Это может занять некоторое время при первом запуске...")
@@ -166,61 +164,81 @@ class EEGDataLoader:
         data_path = sample.data_path()
         
         raw_fname = os.path.join(data_path, 'MEG', 'sample', 'sample_audvis_raw.fif')
+        events_fname = os.path.join(data_path, 'MEG', 'sample', 'sample_audvis_raw-eve.fif')
+        
         raw = mne.io.read_raw_fif(raw_fname, preload=True, verbose=False)
+        events = mne.read_events(events_fname)
         
         raw.pick('eeg', exclude='bads')
         
-        data, times = raw[:, :]
-        
         self.sampling_rate = int(raw.info['sfreq'])
-        self.n_channels = data.shape[0]
+        self.n_channels = len(raw.ch_names)
         
         print(f"Загружено: {self.n_channels} каналов, частота дискретизации: {self.sampling_rate} Гц")
-        print(f"Длительность записи: {times[-1]:.1f} секунд")
+        print(f"Найдено {len(events)} событий")
         
-        segment_length = int(self.sampling_rate * 4)  # 4 секунды
-        n_segments = data.shape[1] // segment_length
+        # В MNE sample dataset есть визуальные события left/right, которые можно интерпретировать
+        # как моторные воображения левой/правой руки
+        event_dict = {
+            'visual/left': 1,   # Левая рука
+            'visual/right': 2,  # Правая рука
+            'auditory/left': 3, # Левая нога (используем аудиальные как альтернативу)
+            'auditory/right': 4 # Правая нога
+        }
+        
+        unique_event_ids = np.unique(events[:, 2])
+        print(f"Уникальные event_id: {unique_event_ids}")
+        
+        available_classes = {}
+        class_counter = 0
+        
+        for event_id in unique_event_ids:
+            if event_id in [1, 2, 3, 4]:  # Визуальные и аудиальные события
+                available_classes[event_id] = class_counter
+                class_counter += 1
+        
+        if len(available_classes) < 2:
+            for event_id in unique_event_ids[:4]:  
+                if event_id not in available_classes:
+                    available_classes[event_id] = class_counter
+                    class_counter += 1
+        
+        print(f"Маппинг событий на классы: {available_classes}")
         
         X = []
         y = []
         
-        for i in range(n_segments):
-            start_idx = i * segment_length
-            end_idx = start_idx + segment_length
-            segment = data[:, start_idx:end_idx]
+        tmin = -0.2  # Начало сегмента относительно события (секунды)
+        tmax = 3.8   # Конец сегмента (4 секунды данных)
+        
+        for event in events:
+            event_id = event[2]
+            event_time = event[0] / self.sampling_rate
             
-            freqs, psd = signal.welch(segment, fs=self.sampling_rate, nperseg=min(256, segment_length))
-            
-            # Альфа (8-13 Гц)
-            alpha_mask = (freqs >= 8) & (freqs <= 13)
-            alpha_power = np.mean(psd[:, alpha_mask], axis=1).mean()
-            
-            # Бета (13-30 Гц)
-            beta_mask = (freqs >= 13) & (freqs <= 30)
-            beta_power = np.mean(psd[:, beta_mask], axis=1).mean()
-            
-            # Гамма (30-50 Гц)
-            gamma_mask = (freqs >= 30) & (freqs <= 50)
-            gamma_power = np.mean(psd[:, gamma_mask], axis=1).mean()
-            
-            # Тета (4-8 Гц)
-            theta_mask = (freqs >= 4) & (freqs <= 8)
-            theta_power = np.mean(psd[:, theta_mask], axis=1).mean()
-            
-            powers = [alpha_power, beta_power, gamma_power, theta_power]
-            max_power = max(powers)
-            
-            threshold = max_power * 0.7  # Порог 70% от максимума
-            
-            valid_classes = [i for i, p in enumerate(powers) if p >= threshold]
-            
-            if len(valid_classes) > 0:
-                dominant_class = np.argmax(powers)
-            else:
-                dominant_class = np.argmax(powers)
-            
-            X.append(segment)
-            y.append(dominant_class)
+            if event_id in available_classes:
+                # Извлекаем сегмент данных вокруг события
+                start_time = event_time + tmin
+                end_time = event_time + tmax
+                
+                if start_time >= 0 and end_time <= raw.times[-1]:
+                    start_idx = int(start_time * self.sampling_rate)
+                    end_idx = int(end_time * self.sampling_rate)
+                    
+                    if end_idx - start_idx > 0:
+                        segment, _ = raw[:, start_idx:end_idx]
+                        
+                        target_length = int((tmax - tmin) * self.sampling_rate)
+                        if segment.shape[1] < target_length:
+                            padding = np.zeros((segment.shape[0], target_length - segment.shape[1]))
+                            segment = np.concatenate([segment, padding], axis=1)
+                        elif segment.shape[1] > target_length:
+                            segment = segment[:, :target_length]
+                        
+                        X.append(segment)
+                        y.append(available_classes[event_id])
+        
+        if len(X) == 0:
+            raise ValueError("Не удалось извлечь сегменты из данных. Проверьте события.")
         
         X = np.array(X)
         y = np.array(y)
@@ -301,7 +319,6 @@ class EEGDataLoader:
             y_balanced = np.concatenate(y_balanced, axis=0)
             
         elif method == 'balanced':
-            # Сбалансированный подход: берем среднее количество из каждого класса
             avg_samples = int(class_counts[class_counts > 0].mean())
             
             X_balanced = []
@@ -312,11 +329,9 @@ class EEGDataLoader:
                 if len(indices) > 0:
                     n_samples = min(avg_samples, len(indices))
                     if len(indices) < n_samples:
-                        # Если меньше среднего, делаем oversample
                         selected_indices = resample(indices, n_samples=n_samples, 
                                                   random_state=random_state, replace=True)
                     else:
-                        # Если больше среднего, делаем undersample
                         selected_indices = np.random.choice(indices, size=n_samples, replace=False)
                     X_balanced.append(X[selected_indices])
                     y_balanced.append(y[selected_indices])

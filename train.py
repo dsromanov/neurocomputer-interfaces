@@ -278,10 +278,10 @@ def main():
     print(f"  Test Accuracy: {test_acc:.4f}")
     
     class_name_map = {
-        0: 'Класс 0 (Альфа)',
-        1: 'Класс 1 (Бета)',
-        2: 'Класс 2 (Гамма)',
-        3: 'Класс 3 (Тета)'
+        0: 'Класс 0 (Левая рука)',
+        1: 'Класс 1 (Правая рука)',
+        2: 'Класс 2 (Левая нога)',
+        3: 'Класс 3 (Правая нога)'
     }
     unique_labels = np.unique(test_labels)
     class_names = [class_name_map.get(i, f'Класс {i}') for i in range(n_classes)]

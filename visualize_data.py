@@ -30,7 +30,7 @@ def visualize_eeg_signals(X, y, n_examples=4, save_path='results/eeg_signals.png
     if n_classes == 1:
         axes = [axes]
     
-    class_names = ['Альфа (8-13 Гц)', 'Бета (13-30 Гц)', 'Гамма (30-50 Гц)', 'Тета (4-8 Гц)']
+    class_names = ['Левая рука', 'Правая рука', 'Левая нога', 'Правая нога']
     
     for class_id in range(n_classes):
         class_indices = np.where(y == class_id)[0]
@@ -49,7 +49,8 @@ def visualize_eeg_signals(X, y, n_examples=4, save_path='results/eeg_signals.png
         
         axes[class_id].set_xlabel('Время (сек)')
         axes[class_id].set_ylabel('Амплитуда (мкВ)')
-        axes[class_id].set_title(f'Класс {class_id}: {class_names[class_id]}')
+        class_name = class_names[class_id] if class_id < len(class_names) else f'Класс {class_id}'
+        axes[class_id].set_title(f'Класс {class_id}: {class_name}')
         axes[class_id].legend(loc='upper right', fontsize=8)
         axes[class_id].grid(True, alpha=0.3)
     
@@ -59,7 +60,7 @@ def visualize_eeg_signals(X, y, n_examples=4, save_path='results/eeg_signals.png
     plt.close()
 
 
-def visualize_spectrogram(X, y, n_examples=1, save_path='results/spectrograms.png'):
+def visualize_spectrogram(X, y, n_examples=1, save_path='results/spectrograms.png', sampling_rate=250):
     """
     Визуализация спектрограмм ЭЭГ сигналов
     
@@ -68,19 +69,19 @@ def visualize_spectrogram(X, y, n_examples=1, save_path='results/spectrograms.pn
         y: Метки классов
         n_examples: Количество примеров для каждого класса
         save_path: Путь для сохранения
+        sampling_rate: Частота дискретизации (Гц)
     """
     from scipy import signal
     
     os.makedirs('results', exist_ok=True)
     
     n_classes = len(np.unique(y))
-    sampling_rate = 250
     
     fig, axes = plt.subplots(n_classes, 1, figsize=(14, 3 * n_classes))
     if n_classes == 1:
         axes = [axes]
     
-    class_names = ['Альфа (8-13 Гц)', 'Бета (13-30 Гц)', 'Гамма (30-50 Гц)', 'Тета (4-8 Гц)']
+    class_names = ['Левая рука', 'Правая рука', 'Левая нога', 'Правая нога']
     
     for class_id in range(n_classes):
         class_indices = np.where(y == class_id)[0]
@@ -105,7 +106,8 @@ def visualize_spectrogram(X, y, n_examples=1, save_path='results/spectrograms.pn
                                       shading='gouraud', cmap='viridis')
         axes[class_id].set_xlabel('Время (сек)')
         axes[class_id].set_ylabel('Частота (Гц)')
-        axes[class_id].set_title(f'Спектрограмма - Класс {class_id}: {class_names[class_id]}')
+        class_name = class_names[class_id] if class_id < len(class_names) else f'Класс {class_id}'
+        axes[class_id].set_title(f'Спектрограмма - Класс {class_id}: {class_name}')
         plt.colorbar(im, ax=axes[class_id], label='Мощность (дБ)')
     
     plt.tight_layout()
@@ -118,13 +120,14 @@ def main():
     print("Загрузка данных для визуализации...")
     
     data_loader = EEGDataLoader(sampling_rate=250, n_channels=22, n_samples=100)
-    # Используем реальные данные из MNE sample dataset
     try:
         X, y = data_loader.load_mne_sample_data()
+        sampling_rate = data_loader.sampling_rate
     except Exception as e:
         print(f"Ошибка при загрузке реальных данных: {e}")
         print("Использование синтетических данных...")
         X, y = data_loader.generate_synthetic_eeg_data(n_classes=4)
+        sampling_rate = data_loader.sampling_rate
     
     X = data_loader.preprocess_data(X, apply_filter=True)
     
@@ -132,7 +135,7 @@ def main():
     visualize_eeg_signals(X, y)
     
     print("Визуализация спектрограмм...")
-    visualize_spectrogram(X, y)
+    visualize_spectrogram(X, y, sampling_rate=sampling_rate)
     
     print("\nВизуализация завершена!")
 
