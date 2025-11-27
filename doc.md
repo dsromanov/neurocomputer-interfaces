@@ -16,7 +16,8 @@
 В данной работе используются **реальные ЭЭГ данные из открытого датасета MNE Sample Dataset**. Этот датасет является частью библиотеки MNE-Python и содержит реальные записи ЭЭГ/МЭГ данных, собранные в научных исследованиях.
 
 **Датасет**: MNE Sample Dataset (Motor Imagery)
-- **Источник**: https://mne.tools/stable/overview/datasets_index.html
+- **Источник**: https://mne.tools/stable/api/datasets.html
+- **Документация**: https://mne.tools/stable/generated/mne.datasets.sample.data_path.html
 - **Тип данных**: Реальные записи ЭЭГ с аннотациями событий
 - **Лицензия**: Открытый доступ для научных исследований
 
@@ -36,7 +37,7 @@
 
 ### Альтернативные датасеты
 Код также поддерживает работу с другими открытыми датасетами:
-- **PhysioNet EEG Motor Movement/Imagery Dataset**: https://www.physionet.org/content/eegmmidb/1.0.0/
+- **PhysioNet EEG Motor Movement/Imagery Dataset**: https://www.physionet.org/content/eegmmidb/
   - 109 субъектов
   - 4 класса движений (левая рука, правая рука, обе ноги, язык)
   - 64 канала ЭЭГ, частота дискретизации 160 Гц
@@ -263,14 +264,7 @@ python train.py
 - Примеров ЭЭГ сигналов по классам
 - Спектрограмм сигналов
 
-### 6.4 Ссылка на репозиторий
-
-Репозиторий проекта доступен по адресу:
-**https://github.com/[ваш-username]/neurocomputer-interfaces**
-
-(Замените на актуальную ссылку на ваш репозиторий)
-
-### 6.5 Использованные библиотеки
+### 6.4 Использованные библиотеки
 
 - **PyTorch**: Фреймворк для глубокого обучения
 - **NumPy**: Работа с массивами
@@ -279,18 +273,15 @@ python train.py
 - **MNE**: Библиотека для работы с нейрофизиологическими данными
 - **Matplotlib/Seaborn**: Визуализация данных
 
-### 6.6 Примеры использования
+### 6.5 Примеры использования
 
 #### Загрузка и предобработка данных:
 ```python
 from data_loader import EEGDataLoader
 
 loader = EEGDataLoader(sampling_rate=250, n_channels=22, n_samples=500)
-# Использование реальных данных из MNE sample dataset
 X_train, X_val, X_test, y_train, y_val, y_test = loader.load_and_prepare_data(use_real_data=True)
 
-# Или использование синтетических данных (для тестирования)
-# X_train, X_val, X_test, y_train, y_val, y_test = loader.load_and_prepare_data(use_real_data=False)
 ```
 
 #### Создание и использование модели:
@@ -311,7 +302,4 @@ with torch.no_grad():
 
 ---
 
-**Автор**: [Ваше имя]  
-**Дата**: 2024  
-**Курс**: Нейрокомпьютерные интерфейсы
 
